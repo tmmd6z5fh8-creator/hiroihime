@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#d9480f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ひろい姫">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>ひろい姫</title>
+<style>
+/* 単体配信用の最小リセット */
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one-column phone app. Sticky top bar (name + step chips), a scrollable drawing stage with floating zoom/draw controls, then the active step's panel. All figures in mono, tabular. */
+:root{
+  --paper:#f2f3f1; --stage:#e2e5e1; --panel:#ffffff;
+  --ink:#1b2027; --ink-2:#5d6673; --line:#d5d9d6; --line-2:#c0c6c2;
+  --accent:#d9480f; --accent-ink:#ffffff; --accent-soft:#fdeee6;
+  --steel:#2b6cb0; --win:#e67e22; --door:#a16207; --cout:#c0245f; --cin:#6b46c1; --flash:#2f855a; --obst:#a08400; --draft:#d9480f;
+  --ok:#2f855a; --warn:#c05621; --bad:#c53030;
+  --hint-bg:rgba(27,32,39,.84); --hint-ink:#ffffff;
+  --font-ui:'Zen Kaku Gothic New','Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP','Yu Gothic',sans-serif;
+  --font-num:'IBM Plex Mono','SF Mono',Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#14171b; --stage:#0c0e11; --panel:#1b1f25;
+    --ink:#e6e8eb; --ink-2:#98a1ab; --line:#2b313a; --line-2:#3a424c;
+    --accent:#ff7b45; --accent-ink:#14171b; --accent-soft:#3a2418;
+    --steel:#63a4f3; --win:#f5a35c; --door:#e0b35a; --cout:#f06595; --cin:#b197fc; --flash:#5ccf85; --obst:#e4c441; --draft:#ff7b45;
+    --ok:#5ccf85; --warn:#f5a35c; --bad:#ff6b6b;
+    --hint-bg:rgba(230,232,235,.92); --hint-ink:#14171b;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#14171b; --stage:#0c0e11; --panel:#1b1f25;
+  --ink:#e6e8eb; --ink-2:#98a1ab; --line:#2b313a; --line-2:#3a424c;
+  --accent:#ff7b45; --accent-ink:#14171b; --accent-soft:#3a2418;
+  --steel:#63a4f3; --win:#f5a35c; --door:#e0b35a; --cout:#f06595; --cin:#b197fc; --flash:#5ccf85; --obst:#e4c441; --draft:#ff7b45;
+  --ok:#5ccf85; --warn:#f5a35c; --bad:#ff6b6b;
+  --hint-bg:rgba(230,232,235,.92); --hint-ink:#14171b;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-ui);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+h1,h2,h3{text-wrap:balance;margin:0}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.muted{color:var(--ink-2);font-size:13px;margin:0}
+.num{font-family:var(--font-num);font-variant-numeric:tabular-nums}
+
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--panel);border-bottom:1px solid var(--line);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px 6px}
+.brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+.brand h1{font-size:19px;font-weight:700;letter-spacing:.04em}
+.brand small{color:var(--ink-2);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.steps{display:flex;gap:6px;overflow-x:auto;margin-top:8px;scrollbar-width:none;padding-bottom:2px}
+.steps::-webkit-scrollbar{display:none}
+.steps button{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--ink-2);border-radius:999px;padding:5px 11px;font-size:13px;display:flex;gap:5px;align-items:center}
+.steps button .n{font-family:var(--font-num);font-size:12px;opacity:.8}
+.steps button[aria-current="step"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.steps button.done .n::after{content:"✓";margin-left:2px;color:var(--ok)}
+.steps button[aria-current="step"].done .n::after{color:var(--paper)}
+
+main{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 48px;display:grid;gap:12px}
+
+/* stage */
+.stage{position:relative;border:1px solid var(--line);background:var(--stage);border-radius:8px;overflow:hidden}
+.stage-scroll{height:min(58vh,560px);min-height:300px;overflow:auto;touch-action:manipulation;-webkit-overflow-scrolling:touch}
+.stage-inner{position:relative;display:block}
+.stage-inner canvas{display:block;max-width:none}
+.stage-inner .overlay{position:absolute;left:0;top:0;pointer-events:none}
+.stage-empty{position:absolute;inset:0;display:grid;place-content:center;gap:12px;text-align:center;padding:24px;background:var(--stage)}
+.stage-empty p{margin:0;color:var(--ink-2);font-size:14px}
+.hint{position:absolute;left:8px;top:8px;right:60px;background:var(--hint-bg);color:var(--hint-ink);font-size:12px;line-height:1.4;padding:6px 10px;border-radius:6px;pointer-events:none}
+.zoomctl{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:4px}
+.zoomctl button,.pager button{width:38px;height:38px;border-radius:8px;border:1px solid var(--line-2);background:var(--panel);font-size:18px;line-height:1;display:grid;place-items:center}
+.drawctl{position:absolute;left:8px;bottom:8px;display:flex;gap:6px}
+.drawctl button{height:38px;padding:0 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--panel);font-size:13px}
+.drawctl button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.pager{position:absolute;right:8px;bottom:8px;display:flex;align-items:center;gap:4px;background:var(--panel);border:1px solid var(--line-2);border-radius:8px;padding:2px}
+.pager button{border:0;width:34px;height:34px}
+.pager span{font-family:var(--font-num);font-size:12px;padding:0 4px;white-space:nowrap}
+
+/* panels */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;display:grid;gap:10px}
+.panel h2{font-size:15px;font-weight:700}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-2);background:var(--panel);border-radius:8px;padding:9px 14px;font-size:14px;min-height:40px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:500}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:default}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{border:1px solid var(--line-2);background:transparent;border-radius:999px;padding:7px 12px;font-size:13px;min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.seg.sub button[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);border-color:var(--accent)}
+.field{display:grid;gap:4px;min-width:0}
+.field label{font-size:12px;color:var(--ink-2)}
+input[type=text],input[type=number],select{font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--line-2);border-radius:6px;background:var(--paper);color:var(--ink);min-width:0;width:100%}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+fieldset{border:1px solid var(--line);border-radius:8px;padding:10px 12px 12px;margin:0;display:grid;gap:8px}
+legend{font-size:12px;color:var(--ink-2);padding:0 4px}
+details.mat{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--paper)}
+details.mat summary{display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;list-style:none;font-size:14px;min-height:28px}
+details.mat summary::-webkit-details-marker{display:none}
+details.mat summary::before{content:"▸";color:var(--ink-2);font-size:12px;flex:0 0 auto}
+details.mat[open] summary::before{content:"▾"}
+details.mat summary>span:first-of-type{flex:1 1 auto;min-width:0}
+details.mat summary .num{color:var(--ink-2);font-size:12px;text-align:right;max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details.mat .grid2 input{background:var(--panel)}
+.banner{background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.banner button{margin-left:auto}
+.status{font-size:13px;padding:8px 10px;border-radius:6px;background:var(--paper);border:1px solid var(--line)}
+.status.ok{border-color:var(--ok)}
+.status b{font-family:var(--font-num);font-weight:600}
+.dots{display:flex;gap:10px;font-size:13px}
+.dots span::before{content:"○ ";color:var(--ink-2)}
+.dots span.on::before{content:"● ";color:var(--accent)}
+
+/* element list */
+.elist{display:grid;gap:4px}
+.erow{display:flex;align-items:center;gap:8px;font-size:13px;min-height:34px;padding:2px 0;border-bottom:1px dashed var(--line)}
+.erow.sub{padding-left:22px}
+.erow .dot{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
+.erow .ename{width:5.5em;padding:4px 6px;font-size:14px}
+.erow .num{color:var(--ink-2);font-size:12px;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.erow .pg{font-family:var(--font-num);font-size:11px;color:var(--ink-2)}
+.erow .tiny{border:1px solid var(--line-2);background:transparent;border-radius:999px;padding:2px 9px;font-size:12px}
+.erow .del{border:0;background:transparent;color:var(--bad);font-size:18px;width:32px;height:32px;flex:0 0 auto}
+.fcard{border:1px solid var(--line);border-radius:8px;padding:2px 8px 6px;display:grid;gap:2px;background:var(--paper)}
+.fcard.off{opacity:.55}
+.fcard .erow{border-bottom:0}
+.fctl{display:grid;grid-template-columns:1fr 1fr;gap:4px;align-items:center}
+.fctl select{font-size:13px;padding:5px 6px;background:var(--panel)}
+.fctl .tiny{justify-self:start;border:1px solid var(--line-2);background:transparent;border-radius:999px;padding:3px 10px;font-size:12px}
+.fctl .tiny[aria-pressed="true"]{background:var(--ok);color:#fff;border-color:var(--ok)}
+.esum{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px}
+tr.lens td{padding:2px 6px 8px;background:var(--paper)}
+tr.lens summary{font-size:12px;color:var(--ink-2);cursor:pointer}
+.lenlist{display:grid;gap:4px;margin-top:6px}
+.lenrow{display:flex;gap:4px;align-items:center}
+.lenrow input[type=text]{flex:1 1 120px;width:auto;text-align:left;font-family:var(--font-ui);font-size:14px}
+.lenrow input[type=number]{width:84px;flex:0 0 auto}
+.lenrow .del{border:0;background:transparent;color:var(--bad);font-size:18px;width:30px;height:30px}
+.lenrow .tiny,.lenlist .tiny{border:1px solid var(--line-2);background:transparent;border-radius:999px;padding:4px 10px;font-size:12px;justify-self:start}
+table.parts{min-width:520px}
+.esum b{font-family:var(--font-num);font-weight:600}
+
+/* detail */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px}
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;gap:2px}
+.stat span{font-size:11px;color:var(--ink-2)}
+.stat b{font-family:var(--font-num);font-size:17px;font-weight:600}
+.stat b small{font-size:11px;font-weight:400;margin-left:2px}
+.tbl-wrap{overflow-x:auto;margin:0 -14px;padding:0 14px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+th,td{padding:6px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:11px;color:var(--ink-2);font-weight:500;white-space:nowrap}
+td.num,th.num{text-align:right;white-space:nowrap}
+tr.grp td{background:var(--paper);font-size:12px;font-weight:700;padding:5px 6px}
+tr.zero td{color:var(--ink-2)}
+td .note{font-size:11px;color:var(--ink-2);line-height:1.35;white-space:normal;min-width:200px;max-width:320px}
+td input{width:80px;padding:4px 6px;font-size:14px;text-align:right;font-family:var(--font-num)}
+.totals{display:grid;gap:4px;font-size:14px;justify-items:end;font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.totals div{display:flex;gap:14px;width:100%;justify-content:space-between;max-width:360px;margin-left:auto}
+.totals .grand{font-size:18px;font-weight:600;border-top:2px solid var(--ink);padding-top:4px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--hint-bg);color:var(--hint-ink);padding:9px 14px;border-radius:999px;font-size:13px;z-index:20;max-width:calc(100% - 32px);text-align:center}
+@media (prefers-reduced-motion:no-preference){.toast{animation:pop .18s ease-out}@keyframes pop{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><h1>ひろい姫</h1><small>金属サイディング 図面拾い・積算</small></div>
+  <nav class="steps" id="steps">
+    <button type="button" data-step="1" aria-current="step"><span class="n">1</span>図面</button>
+    <button type="button" data-step="2"><span class="n">2</span>スケール</button>
+    <button type="button" data-step="3"><span class="n">3</span>拾い</button>
+    <button type="button" data-step="4"><span class="n">4</span>仕様</button>
+    <button type="button" data-step="5"><span class="n">5</span>明細</button>
+  </nav>
+</header>
+
+<main>
+  <section class="stage" id="stage">
+    <div class="stage-scroll" id="stageScroll">
+      <div class="stage-inner" id="stageInner">
+        <canvas id="base" width="10" height="10"></canvas>
+        <canvas id="overlay" class="overlay" width="10" height="10"></canvas>
+      </div>
+    </div>
+    <div class="stage-empty" id="stageEmpty">
+      <p>立面図のPDF（1/100でも1/50でもOK）か、図面の写真・スクショを読み込むとここに出るよ</p>
+      <label class="btn primary"><input type="file" id="file2" accept="application/pdf,image/*" hidden>PDF・画像を選ぶ</label>
+    </div>
+    <div class="hint" id="hint" hidden></div>
+    <div class="zoomctl"><button type="button" id="zoomIn" aria-label="拡大">＋</button><button type="button" id="zoomOut" aria-label="縮小">－</button><button type="button" id="zoomFit" aria-label="全体表示">⊡</button></div>
+    <div class="drawctl" id="drawctl" hidden><button type="button" id="undoPt">1点戻す</button><button type="button" id="closeFace" class="primary">閉じる</button></div>
+    <div class="pager" id="pager" hidden><button type="button" id="prevPage" aria-label="前のページ">‹</button><span id="pageLabel">1 / 1</span><button type="button" id="nextPage" aria-label="次のページ">›</button></div>
+  </section>
+
+  <section class="panel" id="p1">
+    <h2>① 図面を読み込む</h2>
+    <p class="muted">立面図のPDF、または図面の写真・スクショ。4面が1ページでも、面ごとにページが分かれていてもOK。ページ送りは図面の右下。</p>
+    <div class="banner" id="restoreBanner" hidden><span id="restoreText"></span><button type="button" class="btn danger" id="discardRestore">破棄</button></div>
+    <div class="row">
+      <label class="btn primary"><input type="file" id="file1" accept="application/pdf,image/*" hidden>PDF・画像を選ぶ</label>
+      <span class="muted" id="srcInfo">まだ読み込んでないよ</span>
+    </div>
+    <p class="muted">読み込んだら ② でスケール合わせ → ③ で壁と窓をなぞる → ⑤ に明細が出る、の流れだよ。</p>
+  </section>
+
+  <section class="panel" id="p2" hidden>
+    <h2>② スケールを合わせる</h2>
+    <div class="status" id="scaleStatus">未設定</div>
+    <div class="seg" id="scaleMethod">
+      <button type="button" data-m="2pt" aria-pressed="true">2点合わせ（おすすめ）</button>
+      <button type="button" data-m="ratio" aria-pressed="false">図面尺度から</button>
+    </div>
+    <div id="scale2pt" style="display:grid;gap:8px">
+      <p class="muted">図面上で寸法が分かる2点をタップしてね。例：「9,100」の寸法線の両端。長い寸法ほど精度が上がるよ。</p>
+      <div class="dots"><span id="dot1">点1</span><span id="dot2">点2</span><span id="dotDist" class="num"></span></div>
+      <div class="row">
+        <div class="field" style="flex:1 1 140px"><label for="scaleMM">その2点の実寸（mm）</label><input type="number" id="scaleMM" inputmode="numeric" placeholder="9100"></div>
+        <button type="button" class="btn primary" id="applyScale" disabled>確定</button>
+        <button type="button" class="btn" id="resetScalePts">点を消す</button>
+      </div>
+    </div>
+    <div id="scaleRatio" style="display:none;gap:8px">
+      <p class="muted">PDFが原寸（A3なら実際のA3サイズ）で出力されている場合だけ正確。縮小印刷のPDFや写真は2点合わせを使ってね。</p>
+      <div class="row">
+        <div class="field" style="flex:1 1 140px"><label for="ratioSel">図面尺度</label><select id="ratioSel"><option value="50">1/50</option><option value="100" selected>1/100</option><option value="150">1/150</option><option value="200">1/200</option></select></div>
+        <button type="button" class="btn primary" id="applyRatio">適用</button>
+      </div>
+    </div>
+    <p class="muted">合わせたあと、③の「測る」で分かっている寸法を測って確認すると安心だよ。</p>
+  </section>
+
+  <section class="panel" id="p3" hidden>
+    <h2>③ 拾い出し</h2>
+    <p class="muted">面ごとに部位（外壁・妻三角・ベランダ・ビルトイン・ルーフバルコニー…）と階を付けると、明細で部位別に分かれて最後に合算されるよ。部位ごとに下辺（土台水切り／中間水切り）と上辺（軒天見切り／笠木下水切り）の扱いは自動で決まるけど、面ごとに変えられる。ベランダ内側など積算に入れない面は「対象外」に。</p>
+    <div class="seg" id="tools">
+      <button type="button" data-tool="face" aria-pressed="true">面（壁の輪郭）</button>
+      <button type="button" data-tool="opening" aria-pressed="false">開口</button>
+      <button type="button" data-tool="corner" aria-pressed="false">出隅・入隅</button>
+      <button type="button" data-tool="line" aria-pressed="false">水切り線</button>
+      <button type="button" data-tool="obst" aria-pressed="false">障害物</button>
+      <button type="button" data-tool="measure" aria-pressed="false">測る</button>
+      <button type="button" data-tool="erase" aria-pressed="false">消す</button>
+    </div>
+    <div class="seg sub" id="subtools"></div>
+    <div class="row" id="faceNameRow">
+      <div class="field" style="flex:1 1 90px;max-width:140px"><label for="faceName">次の面の名前</label><input type="text" id="faceName" value="南面"></div>
+      <div class="field" style="flex:2 1 150px"><label for="facePart">部位</label><select id="facePart"></select></div>
+      <div class="field" style="flex:0 1 110px"><label for="faceFloor">階</label><select id="faceFloor"></select></div>
+    </div>
+    <div class="esum" id="esum"></div>
+    <div class="elist" id="elist"></div>
+    <div class="row"><button type="button" class="btn" id="undoBtn">元に戻す</button><button type="button" class="btn danger" id="clearAll">全部消す</button><button type="button" class="btn primary" id="toDetail">明細を見る →</button></div>
+  </section>
+
+  <section class="panel" id="p4" hidden>
+    <h2>④ 仕様・ロス率</h2>
+    <p class="muted">メーカーの働き幅・定尺に合わせて変えてね。ここで変えた値は次回も覚えておくよ。</p>
+    <div id="specForm" style="display:grid;gap:10px"></div>
+  </section>
+
+  <section class="panel" id="p5" hidden>
+    <h2>⑤ 積算明細</h2>
+    <div class="stats" id="dsum"></div>
+    <div id="faceSummary" class="muted"></div>
+    <div id="detail"></div>
+    <div class="totals" id="totals" hidden></div>
+    <div class="row">
+      <button type="button" class="btn primary" id="copyTsv">Excel用にコピー</button>
+      <button type="button" class="btn" id="copyText">テキストでコピー</button>
+    </div>
+    <p class="muted">「採用」に数字を入れると自動値を上書きできるよ（空欄なら自動値）。単価は材料・手間を分けて入力。単価は次回も覚えておくよ。</p>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="calc.js"></script>
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }
+</script>
+</body>
+</html>
